@@ -8,7 +8,7 @@ testpy2:
 	python -m unittest discover tests
 
 testpy3:
-	python3 -m unittest discover tests
+	uv run python -m unittest discover tests
 
 qt4: qt4py2
 
@@ -21,19 +21,22 @@ qt4py3:
 	pyrcc4 -py3 -o libs/resources.py resources.qrc
 
 qt5py3:
-	pyrcc5 -o libs/resources.py resources.qrc
+	uv run pyrcc5 -o libs/resources.py resources.qrc
 
 clean:
 	rm -rf ~/.redlabelSettings.pkl *.pyc dist redlabel.egg-info __pycache__ build
 
 build:
-	python3 -m build
+	uv build
 
-pip_upload:
-	python3 -m twine upload dist/*
+upload:
+	uv publish
 
 install:
-	pip install -e .
+	uv sync
+
+install-dev:
+	uv sync --dev
 
 long_description:
 	restview --long-description

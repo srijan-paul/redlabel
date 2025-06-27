@@ -1,7 +1,0 @@
-# Core dependencies
-PyQt5>=5.14.0
-lxml>=4.6.0
-
-# Development dependencies (install with: pip install -r requirements.txt -e .[dev])
-# pytest>=6.0
-# pytest-qt>=4.0.0

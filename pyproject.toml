@@ -52,14 +52,24 @@ packages = ["libs"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-"*" = ["*.txt", "*.qrc"]
+"*" = ["*.txt", "*.qrc", "*.py"]
 "data" = ["*.txt"]
 "resources" = ["**/*"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=6.0",
+    "pytest-qt>=4.0.0",
+    "twine>=4.0.0", 
+    "build>=0.8.0"
+]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=6.0",
-    "pytest-qt>=4.0.0"
+    "pytest-qt>=4.0.0",
+    "twine>=4.0.0",
+    "build>=0.8.0"
 ]
 
 [tool.pytest.ini_options]

@@ -1,6 +1,6 @@
 # RedLabel
 
-A modern fork of the popular LabelImg image annotation tool with quality of life improvements.
+A modern fork of the popular image annotation tool with quality of life improvements.
 
 ![Demo](demo/demo.jpg)
 
@@ -16,24 +16,30 @@ A modern fork of the popular LabelImg image annotation tool with quality of life
 
 ### Installation
 
-```bash
-# Install from PyPI
-pip install redlabel
+First, install [uv](https://astral.sh/uv) - the fast Python package manager:
 
-# Or install from source
+```bash
+# Install uv (macOS/Linux)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Then install RedLabel:
+
+```bash
 git clone https://github.com/srijan-paul/RedLabel.git
 cd RedLabel
-pip install -e .
+uv sync
 ```
 
 ### Usage
 
 ```bash
 # Launch the application
-redlabel
-
-# Or with specific image/classes
-redlabel [IMAGE_PATH] [CLASS_FILE]
+uv run redlabel.py
+uv run redlabel.py [IMAGE_PATH] [CLASS_FILE]
 ```
 
 ## Development
@@ -42,17 +48,18 @@ redlabel [IMAGE_PATH] [CLASS_FILE]
 # Clone and setup
 git clone https://github.com/srijan-paul/RedLabel.git
 cd RedLabel
-pip install -r requirements.txt
-pip install -e .[dev]
+
+# Install dependencies and create virtual environment
+uv sync --dev
 
 # Build resources
-make qt5py3
+uv run make qt5py3
 
 # Run tests
-make test
+uv run make test
 
 # Run application
-python3 redlabel.py
+uv run python redlabel.py
 ```
 
 ## Keyboard Shortcuts
