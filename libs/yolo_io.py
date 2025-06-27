@@ -94,8 +94,17 @@ class YoloReader:
 
         # print (file_path, self.class_list_path)
 
-        classes_file = open(self.class_list_path, 'r')
-        self.classes = classes_file.read().strip('\n').split('\n')
+        try:
+            with open(self.class_list_path, 'r') as classes_file:
+                self.classes = classes_file.read().strip('\n').split('\n')
+                # Remove empty strings from classes list
+                self.classes = [cls for cls in self.classes if cls.strip()]
+        except FileNotFoundError:
+            self.classes = []
+            self._missing_classes_file = True
+        except Exception as e:
+            self.classes = []
+            self._classes_file_error = str(e)
 
         # print (self.classes)
 
@@ -119,7 +128,18 @@ class YoloReader:
         self.shapes.append((label, points, None, None, difficult))
 
     def yolo_line_to_shape(self, class_index, x_center, y_center, w, h):
-        label = self.classes[int(class_index)]
+        class_idx = int(class_index)
+        
+        # Handle case where class index is out of range
+        if class_idx >= len(self.classes):
+            # Store error info for GUI layer to handle
+            if not hasattr(self, '_class_errors'):
+                self._class_errors = []
+            self._class_errors.append(f"Class index {class_idx} not found (max: {len(self.classes) - 1})")
+            # Use a fallback label
+            label = f"unknown_class_{class_idx}"
+        else:
+            label = self.classes[class_idx]
 
         x_min = max(float(x_center) - float(w) / 2, 0)
         x_max = min(float(x_center) + float(w) / 2, 1)
@@ -134,10 +154,57 @@ class YoloReader:
         return label, x_min, y_min, x_max, y_max
 
     def parse_yolo_format(self):
-        bnd_box_file = open(self.file_path, 'r')
-        for bndBox in bnd_box_file:
-            class_index, x_center, y_center, w, h = bndBox.strip().split(' ')
-            label, x_min, y_min, x_max, y_max = self.yolo_line_to_shape(class_index, x_center, y_center, w, h)
+        try:
+            with open(self.file_path, 'r') as bnd_box_file:
+                for line_num, bndBox in enumerate(bnd_box_file, 1):
+                    line = bndBox.strip()
+                    if not line:  # Skip empty lines
+                        continue
+                    
+                    try:
+                        parts = line.split(' ')
+                        if len(parts) != 5:
+                            if not hasattr(self, '_format_errors'):
+                                self._format_errors = []
+                            self._format_errors.append(f"Line {line_num}: expected 5 values, got {len(parts)}")
+                            continue
+                            
+                        class_index, x_center, y_center, w, h = parts
+                        label, x_min, y_min, x_max, y_max = self.yolo_line_to_shape(class_index, x_center, y_center, w, h)
 
-            # Caveat: difficult flag is discarded when saved as yolo format.
-            self.add_shape(label, x_min, y_min, x_max, y_max, False)
+                        # Caveat: difficult flag is discarded when saved as yolo format.
+                        self.add_shape(label, x_min, y_min, x_max, y_max, False)
+                    except ValueError as e:
+                        if not hasattr(self, '_parse_errors'):
+                            self._parse_errors = []
+                        self._parse_errors.append(f"Line {line_num}: {str(e)}")
+                        continue
+                    except Exception as e:
+                        if not hasattr(self, '_parse_errors'):
+                            self._parse_errors = []
+                        self._parse_errors.append(f"Line {line_num}: {str(e)}")
+                        continue
+        except IOError as e:
+            print(f"Error: Could not read YOLO annotation file {self.file_path}: {e}")
+            raise
+
+    def get_errors(self):
+        """Get all errors encountered during parsing."""
+        errors = []
+        
+        if hasattr(self, '_missing_classes_file'):
+            errors.append(f"Classes file not found: {self.class_list_path}")
+            
+        if hasattr(self, '_classes_file_error'):
+            errors.append(f"Could not read classes file: {self._classes_file_error}")
+            
+        if hasattr(self, '_class_errors'):
+            errors.extend(self._class_errors)
+            
+        if hasattr(self, '_format_errors'):
+            errors.extend(self._format_errors)
+            
+        if hasattr(self, '_parse_errors'):
+            errors.extend(self._parse_errors)
+            
+        return errors
