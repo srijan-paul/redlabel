@@ -43,3 +43,4 @@ __pycache__/
 tmp.*
 AGENT.md
 AGENTS.md
+*.pt
