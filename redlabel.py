@@ -1,10 +1,40 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-RedLabel
-A modern image annotation tool with quality of life improvements.
+RedLabel - Modern Image Annotation Tool
 
-This is a fork of HumanSignal/labelImg with modernized setup and improved features.
+ARCHITECTURE OVERVIEW:
+=====================
+
+RedLabel is built using PyQt5 and follows a Model-View-Controller pattern:
+
+MAIN COMPONENTS:
+- MainWindow: Primary application window and controller
+- Canvas: Drawing surface for image display and annotation interaction
+- LabelFile: Data model for saving/loading annotations in multiple formats
+- I/O Modules: Format-specific readers/writers (PASCAL VOC, YOLO, CreateML)
+
+DATA FLOW:
+1. User opens image directory or file
+2. Image loaded and displayed on Canvas
+3. User creates/edits bounding boxes via Canvas interactions
+4. Shapes are stored in MainWindow state and Canvas
+5. Annotations saved to file using appropriate I/O module
+
+SUPPORTED FORMATS:
+- PASCAL VOC (XML): Standard computer vision annotation format
+- YOLO (TXT): Dark framework format with normalized coordinates  
+- CreateML (JSON): Apple's machine learning annotation format
+
+KEY CLASSES:
+- MainWindow: Main application logic, UI management, file operations
+- Canvas: Interactive drawing surface, shape manipulation, user interactions
+- Shape: Geometric primitives for bounding boxes and labels
+- LabelFile: Unified interface for annotation persistence
+- Settings: Application configuration management
+
+The application uses a plugin-style architecture for annotation formats,
+making it easy to add new import/export capabilities.
 """
 import argparse
 import codecs
@@ -58,14 +88,17 @@ __appname__ = 'RedLabel'
 
 
 class WindowMixin(object):
+    """Mixin providing common window functionality for menu and toolbar creation."""
 
     def menu(self, title, actions=None):
+        """Create a menu with the given title and optional actions."""
         menu = self.menuBar().addMenu(title)
         if actions:
             add_actions(menu, actions)
         return menu
 
     def toolbar(self, title, actions=None):
+        """Create a toolbar with the given title and optional actions."""
         toolbar = ToolBar(title)
         toolbar.setObjectName(u'%sToolBar' % title)
         # toolbar.setOrientation(Qt.Vertical)
@@ -77,104 +110,148 @@ class WindowMixin(object):
 
 
 class MainWindow(QMainWindow, WindowMixin):
+    """Main application window providing image annotation functionality."""
+    
     FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = list(range(3))
 
     def __init__(self, default_filename=None, default_prefdef_class_file=None, default_save_dir=None):
+        """Initialize the main window with optional default settings."""
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
 
-        # Load setting in the main thread
+        # Initialize core application state
+        self._init_core_state(default_save_dir, default_prefdef_class_file)
+        
+        # Setup UI components
+        self._init_ui_components()
+        
+        # Setup actions and menus
+        self._init_actions_and_menus()
+        
+        # Apply settings and complete initialization
+        self._finalize_initialization(default_filename)
+
+    def _init_core_state(self, default_save_dir, default_prefdef_class_file):
+        """Initialize core application state and settings."""
+        # Load settings
         self.settings = Settings()
         self.settings.load()
         settings = self.settings
-
+        
+        # System and localization
         self.os_name = platform.system()
-
-        # Load string bundle for i18n
         self.string_bundle = StringBundle.get_bundle()
         get_str = lambda str_id: self.string_bundle.get_string(str_id)
-
-        # Save as Pascal voc xml
+        self.get_str = get_str  # Store for use in other methods
+        
+        # File handling state
         self.default_save_dir = default_save_dir
-        self.label_file_format = settings.get(SETTING_LABEL_FILE_FORMAT, LabelFileFormat.PASCAL_VOC)
-
-        # For loading all image under a directory
+        self.label_file_format = self.settings.get(SETTING_LABEL_FILE_FORMAT, LabelFileFormat.PASCAL_VOC)
         self.m_img_list = []
         self.dir_name = None
         self.label_hist = []
         self.last_open_dir = None
         self.cur_img_idx = 0
         self.img_count = len(self.m_img_list)
-
-        # Whether we need to save or not.
+        
+        # Application state flags
         self.dirty = False
-
         self._no_selection_slot = False
         self._beginner = True
         self.screencast = "https://youtu.be/p0nR2YsCY_U"
-
-        # Load predefined classes to the list
+        
+        # Load predefined classes
         self.load_predefined_classes(default_prefdef_class_file)
-
         if self.label_hist:
             self.default_label = self.label_hist[0]
         else:
             print("Not find:/data/predefined_classes.txt (optional)")
-
-        # Main widgets and related state.
-        self.label_dialog = LabelDialog(parent=self, list_item=self.label_hist)
-
+        
+        # Shape management
         self.items_to_shapes = {}
         self.shapes_to_items = {}
         self.prev_label_text = ''
 
+    def _init_ui_components(self):
+        """Initialize all UI components and widgets."""
+        get_str = self.get_str
+        
+        # Main dialog
+        self.label_dialog = LabelDialog(parent=self, list_item=self.label_hist)
+
+        # Create label panel layout
         list_layout = QVBoxLayout()
         list_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Create a widget for using default label
+        # Default label controls
+        self._create_default_label_controls(list_layout, get_str)
+        
+        # Edit and difficulty controls  
+        self._create_edit_controls(list_layout, get_str)
+        
+        # Label list and combo box
+        self._create_label_list_controls(list_layout, get_str)
+        
+        # Create dock widgets
+        self._create_dock_widgets(list_layout, get_str)
+        
+        # Create main canvas and scroll area
+        self._create_canvas_and_scroll(get_str)
+        
+        # Connect canvas signals
+        self._connect_canvas_signals()
+        
+        # Setup dock widget features
+        self._setup_dock_features()
+
+    def _create_default_label_controls(self, layout, get_str):
+        """Create default label checkbox and combo box controls."""
         self.use_default_label_checkbox = QCheckBox(get_str('useDefaultLabel'))
         self.use_default_label_checkbox.setChecked(False)
-        self.default_label_combo_box = DefaultLabelComboBox(self,items=self.label_hist)
+        self.default_label_combo_box = DefaultLabelComboBox(self, items=self.label_hist)
 
         use_default_label_qhbox_layout = QHBoxLayout()
         use_default_label_qhbox_layout.addWidget(self.use_default_label_checkbox)
         use_default_label_qhbox_layout.addWidget(self.default_label_combo_box)
         use_default_label_container = QWidget()
         use_default_label_container.setLayout(use_default_label_qhbox_layout)
+        
+        layout.addWidget(use_default_label_container)
 
-        # Create a widget for edit and diffc button
+    def _create_edit_controls(self, layout, get_str):
+        """Create edit button and difficulty checkbox controls."""
         self.diffc_button = QCheckBox(get_str('useDifficult'))
         self.diffc_button.setChecked(False)
         self.diffc_button.stateChanged.connect(self.button_state)
+        
         self.edit_button = QToolButton()
         self.edit_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
-        # Add some of widgets to list_layout
-        list_layout.addWidget(self.edit_button)
-        list_layout.addWidget(self.diffc_button)
-        list_layout.addWidget(use_default_label_container)
+        layout.addWidget(self.edit_button)
+        layout.addWidget(self.diffc_button)
 
-        # Create and add combobox for showing unique labels in group
+    def _create_label_list_controls(self, layout, get_str):
+        """Create label list and combo box for showing unique labels."""
         self.combo_box = ComboBox(self)
-        list_layout.addWidget(self.combo_box)
+        layout.addWidget(self.combo_box)
 
-        # Create and add a widget for showing current label items
         self.label_list = QListWidget()
-        label_list_container = QWidget()
-        label_list_container.setLayout(list_layout)
         self.label_list.itemActivated.connect(self.label_selection_changed)
         self.label_list.itemSelectionChanged.connect(self.label_selection_changed)
         self.label_list.itemDoubleClicked.connect(self.edit_label)
-        # Connect to itemChanged to detect checkbox changes.
         self.label_list.itemChanged.connect(self.label_item_changed)
-        list_layout.addWidget(self.label_list)
+        layout.addWidget(self.label_list)
 
-
-
+    def _create_dock_widgets(self, list_layout, get_str):
+        """Create and setup dock widgets for labels and file list."""
+        # Label dock widget
+        label_list_container = QWidget()
+        label_list_container.setLayout(list_layout)
         self.dock = QDockWidget(get_str('boxLabelText'), self)
         self.dock.setObjectName(get_str('labels'))
         self.dock.setWidget(label_list_container)
 
+        # File list dock widget
         self.file_list_widget = QListWidget()
         self.file_list_widget.itemDoubleClicked.connect(self.file_item_double_clicked)
         file_list_layout = QVBoxLayout()
@@ -186,15 +263,18 @@ class MainWindow(QMainWindow, WindowMixin):
         self.file_dock.setObjectName(get_str('files'))
         self.file_dock.setWidget(file_list_container)
 
+    def _create_canvas_and_scroll(self, get_str):
+        """Create main canvas and scroll area components."""
+        # Create utility widgets
         self.zoom_widget = ZoomWidget()
         self.light_widget = LightWidget(get_str('lightWidgetTitle'))
         self.color_dialog = ColorDialog(parent=self)
 
+        # Create main canvas
         self.canvas = Canvas(parent=self)
-        self.canvas.zoomRequest.connect(self.zoom_request)
-        self.canvas.lightRequest.connect(self.light_request)
-        self.canvas.set_drawing_shape_to_square(settings.get(SETTING_DRAW_SQUARE, False))
+        self.canvas.set_drawing_shape_to_square(self.settings.get(SETTING_DRAW_SQUARE, False))
 
+        # Create scroll area
         scroll = QScrollArea()
         scroll.setWidget(self.canvas)
         scroll.setWidgetResizable(True)
@@ -203,14 +283,20 @@ class MainWindow(QMainWindow, WindowMixin):
             Qt.Horizontal: scroll.horizontalScrollBar()
         }
         self.scroll_area = scroll
-        self.canvas.scrollRequest.connect(self.scroll_request)
 
+    def _connect_canvas_signals(self):
+        """Connect all canvas-related signals."""
+        self.canvas.zoomRequest.connect(self.zoom_request)
+        self.canvas.lightRequest.connect(self.light_request)
+        self.canvas.scrollRequest.connect(self.scroll_request)
         self.canvas.newShape.connect(self.new_shape)
         self.canvas.shapeMoved.connect(self.set_dirty)
         self.canvas.selectionChanged.connect(self.shape_selection_changed)
         self.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
 
-        self.setCentralWidget(scroll)
+    def _setup_dock_features(self):
+        """Setup main window layout and dock widget features."""
+        self.setCentralWidget(self.scroll_area)
         self.addDockWidget(Qt.RightDockWidgetArea, self.dock)
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_dock)
         self.file_dock.setFeatures(QDockWidget.DockWidgetFloatable)
@@ -218,36 +304,33 @@ class MainWindow(QMainWindow, WindowMixin):
         self.dock_features = QDockWidget.DockWidgetClosable | QDockWidget.DockWidgetFloatable
         self.dock.setFeatures(self.dock.features() ^ self.dock_features)
 
-        # Actions
+    def _init_actions_and_menus(self):
+        """Initialize all actions and menu systems."""
+        get_str = self.get_str
         action = partial(new_action, self)
+        
+        # Create file actions
         quit = action(get_str('quit'), self.close,
                       'Ctrl+Q', 'quit', get_str('quitApp'))
-
         open = action(get_str('openFile'), self.open_file,
                       'Ctrl+O', 'open', get_str('openFileDetail'))
-
         open_dir = action(get_str('openDir'), self.open_dir_dialog,
                           'Ctrl+u', 'open', get_str('openDir'))
-
         change_save_dir = action(get_str('changeSaveDir'), self.change_save_dir_dialog,
                                  'Ctrl+r', 'open', get_str('changeSavedAnnotationDir'))
-
         open_annotation = action(get_str('openAnnotation'), self.open_annotation_dialog,
                                  'Ctrl+Shift+O', 'open', get_str('openAnnotationDetail'))
-        copy_prev_bounding = action(get_str('copyPrevBounding'), self.copy_previous_bounding_boxes, 'Ctrl+v', 'copy', get_str('copyPrevBounding'))
-
+        copy_prev_bounding = action(get_str('copyPrevBounding'), self.copy_previous_bounding_boxes, 
+                                   'Ctrl+v', 'copy', get_str('copyPrevBounding'))
         open_next_image = action(get_str('nextImg'), self.open_next_image,
                                  'd', 'next', get_str('nextImgDetail'))
-
         open_prev_image = action(get_str('prevImg'), self.open_prev_image,
                                  'a', 'prev', get_str('prevImgDetail'))
-
         verify = action(get_str('verifyImg'), self.verify_image,
                         'space', 'verify', get_str('verifyImgDetail'))
-
         save = action(get_str('save'), self.save_file,
                       'Ctrl+S', 'save', get_str('saveDetail'), enabled=False)
-
+        
         def get_format_meta(format):
             """
             returns a tuple containing (title, icon_name) of the selected format
@@ -354,6 +437,9 @@ class MainWindow(QMainWindow, WindowMixin):
         # Group light controls into a list for easier toggling.
         light_actions = (self.light_widget, light_brighten,
                          light_darken, light_org)
+        
+        light = QWidgetAction(self)
+        light.setDefaultWidget(self.light_widget)
 
         edit = action(get_str('editLabel'), self.edit_label,
                       'Ctrl+E', 'edit', get_str('editLabelDetail'),
@@ -382,7 +468,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.draw_squares_option = QAction(get_str('drawSquares'), self)
         self.draw_squares_option.setShortcut('Ctrl+Shift+R')
         self.draw_squares_option.setCheckable(True)
-        self.draw_squares_option.setChecked(settings.get(SETTING_DRAW_SQUARE, False))
+        self.draw_squares_option.setChecked(self.settings.get(SETTING_DRAW_SQUARE, False))
         self.draw_squares_option.triggered.connect(self.toggle_draw_square)
 
         # Store actions for further handling.
@@ -418,18 +504,18 @@ class MainWindow(QMainWindow, WindowMixin):
         # Auto saving : Enable auto saving if pressing next
         self.auto_saving = QAction(get_str('autoSaveMode'), self)
         self.auto_saving.setCheckable(True)
-        self.auto_saving.setChecked(settings.get(SETTING_AUTO_SAVE, False))
+        self.auto_saving.setChecked(self.settings.get(SETTING_AUTO_SAVE, False))
         # Sync single class mode from PR#106
         self.single_class_mode = QAction(get_str('singleClsMode'), self)
         self.single_class_mode.setShortcut("Ctrl+Shift+S")
         self.single_class_mode.setCheckable(True)
-        self.single_class_mode.setChecked(settings.get(SETTING_SINGLE_CLASS, False))
+        self.single_class_mode.setChecked(self.settings.get(SETTING_SINGLE_CLASS, False))
         self.lastLabel = None
         # Add option to enable/disable labels being displayed at the top of bounding boxes
         self.display_label_option = QAction(get_str('displayLabel'), self)
         self.display_label_option.setShortcut("Ctrl+Shift+P")
         self.display_label_option.setCheckable(True)
-        self.display_label_option.setChecked(settings.get(SETTING_PAINT_LABEL, False))
+        self.display_label_option.setChecked(self.settings.get(SETTING_PAINT_LABEL, False))
         self.display_label_option.triggered.connect(self.toggle_paint_labels_option)
 
         add_actions(self.menus.file,
@@ -467,7 +553,12 @@ class MainWindow(QMainWindow, WindowMixin):
         self.statusBar().showMessage('%s started.' % __appname__)
         self.statusBar().show()
 
-        # Application state.
+
+
+    def _finalize_initialization(self, default_filename):
+        """Apply final settings and complete application initialization."""
+        
+        # Initialize application state
         self.image = QImage()
         self.file_path = ustr(default_filename)
         self.last_open_dir = None
@@ -477,73 +568,85 @@ class MainWindow(QMainWindow, WindowMixin):
         self.fill_color = None
         self.zoom_level = 100
         self.fit_window = False
-        # Add Chris
         self.difficult = False
 
-        # Fix the compatible issue for qt4 and qt5. Convert the QStringList to python list
-        if settings.get(SETTING_RECENT_FILES):
+        # Handle recent files compatibility between Qt4/Qt5
+        if self.settings.get(SETTING_RECENT_FILES):
             if have_qstring():
-                recent_file_qstring_list = settings.get(SETTING_RECENT_FILES)
+                recent_file_qstring_list = self.settings.get(SETTING_RECENT_FILES)
                 self.recent_files = [ustr(i) for i in recent_file_qstring_list]
             else:
-                self.recent_files = recent_file_qstring_list = settings.get(SETTING_RECENT_FILES)
+                self.recent_files = recent_file_qstring_list = self.settings.get(SETTING_RECENT_FILES)
 
+        # Restore window geometry and position
+        self._restore_window_geometry(self.settings)
+        
+        # Apply saved colors and canvas settings
+        self._apply_color_settings(self.settings)
+        
+        # Setup advanced mode if enabled
+        def xbool(x):
+            if isinstance(x, QVariant):
+                return x.toBool()
+            return bool(x)
+
+        if xbool(self.settings.get(SETTING_ADVANCE_MODE, False)):
+            self.actions.advancedMode.setChecked(True)
+            self.toggle_advanced_mode()
+
+        # Initialize UI and load initial file if specified
+        self._complete_ui_setup(default_filename)
+
+    def _restore_window_geometry(self, settings):
+        """Restore window size and position from settings."""
         size = settings.get(SETTING_WIN_SIZE, QSize(600, 500))
         position = QPoint(0, 0)
         saved_position = settings.get(SETTING_WIN_POSE, position)
+        
         # Fix the multiple monitors issue
         for i in range(QApplication.desktop().screenCount()):
             if QApplication.desktop().availableGeometry(i).contains(saved_position):
                 position = saved_position
                 break
+        
         self.resize(size)
         self.move(position)
+        self.restoreState(settings.get(SETTING_WIN_STATE, QByteArray()))
+
+    def _apply_color_settings(self, settings):
+        """Apply saved color settings to shapes and canvas."""
         save_dir = ustr(settings.get(SETTING_SAVE_DIR, None))
         self.last_open_dir = ustr(settings.get(SETTING_LAST_OPEN_DIR, None))
+        
         if self.default_save_dir is None and save_dir is not None and os.path.exists(save_dir):
             self.default_save_dir = save_dir
             self.statusBar().showMessage('%s started. Annotation will be saved to %s' %
                                          (__appname__, self.default_save_dir))
             self.statusBar().show()
 
-        self.restoreState(settings.get(SETTING_WIN_STATE, QByteArray()))
         Shape.line_color = self.line_color = QColor(settings.get(SETTING_LINE_COLOR, DEFAULT_LINE_COLOR))
         Shape.fill_color = self.fill_color = QColor(settings.get(SETTING_FILL_COLOR, DEFAULT_FILL_COLOR))
         self.canvas.set_drawing_color(self.line_color)
-        # Add chris
         Shape.difficult = self.difficult
 
-        def xbool(x):
-            if isinstance(x, QVariant):
-                return x.toBool()
-            return bool(x)
-
-        if xbool(settings.get(SETTING_ADVANCE_MODE, False)):
-            self.actions.advancedMode.setChecked(True)
-            self.toggle_advanced_mode()
-
-        # Populate the File menu dynamically.
+    def _complete_ui_setup(self, default_filename):
+        """Complete UI setup and load initial files."""
+        # Populate menus and connect final callbacks
         self.update_file_menu()
-
-        # Since loading the file may take some time, make sure it runs in the background.
-        if self.file_path and os.path.isdir(self.file_path):
-            self.queue_event(partial(self.import_dir_images, self.file_path or ""))
-        elif self.file_path:
-            self.queue_event(partial(self.load_file, self.file_path or ""))
-
-        # Callbacks:
         self.zoom_widget.valueChanged.connect(self.paint_canvas)
         self.light_widget.valueChanged.connect(self.paint_canvas)
-
         self.populate_mode_actions()
 
-        # Display cursor coordinates at the right of status bar
+        # Setup status bar coordinates display
         self.label_coordinates = QLabel('')
         self.statusBar().addPermanentWidget(self.label_coordinates)
 
-        # Open Dir if default file
+        # Load initial file/directory if specified
         if self.file_path and os.path.isdir(self.file_path):
+            self.queue_event(partial(self.import_dir_images, self.file_path or ""))
             self.open_dir_dialog(dir_path=self.file_path, silent=True)
+        elif self.file_path:
+            self.queue_event(partial(self.load_file, self.file_path or ""))
 
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
@@ -559,18 +662,17 @@ class MainWindow(QMainWindow, WindowMixin):
 
     # Support Functions #
     def set_format(self, save_format):
+        """Set the current annotation format (PASCAL VOC, YOLO, or CreateML)."""
         if save_format == FORMAT_PASCALVOC:
             self.actions.save_format.setText(FORMAT_PASCALVOC)
             self.actions.save_format.setIcon(new_icon("format_voc"))
             self.label_file_format = LabelFileFormat.PASCAL_VOC
             LabelFile.suffix = XML_EXT
-
         elif save_format == FORMAT_YOLO:
             self.actions.save_format.setText(FORMAT_YOLO)
             self.actions.save_format.setIcon(new_icon("format_yolo"))
             self.label_file_format = LabelFileFormat.YOLO
             LabelFile.suffix = TXT_EXT
-
         elif save_format == FORMAT_CREATEML:
             self.actions.save_format.setText(FORMAT_CREATEML)
             self.actions.save_format.setIcon(new_icon("format_createml"))
@@ -578,6 +680,7 @@ class MainWindow(QMainWindow, WindowMixin):
             LabelFile.suffix = JSON_EXT
 
     def change_format(self):
+        """Cycle through annotation formats: PASCAL VOC -> YOLO -> CreateML -> PASCAL VOC."""
         if self.label_file_format == LabelFileFormat.PASCAL_VOC:
             self.set_format(FORMAT_YOLO)
         elif self.label_file_format == LabelFileFormat.YOLO:
@@ -592,6 +695,7 @@ class MainWindow(QMainWindow, WindowMixin):
         return not self.items_to_shapes
 
     def toggle_advanced_mode(self, value=True):
+        """Toggle between beginner and advanced UI modes."""
         self._beginner = not value
         self.canvas.set_editing(True)
         self.populate_mode_actions()
@@ -680,21 +784,25 @@ class MainWindow(QMainWindow, WindowMixin):
         return not self.beginner()
 
     def show_tutorial_dialog(self, browser='default', link=None):
+        """Open tutorial or documentation link in specified browser."""
         if link is None:
             link = self.screencast
 
         if browser.lower() == 'default':
             wb.open(link, new=2)
         elif browser.lower() == 'chrome' and self.os_name == 'Windows':
-            if shutil.which(browser.lower()):  # 'chrome' not in wb._browsers in windows
+            # Special handling for Chrome on Windows due to webbrowser module limitations
+            if shutil.which(browser.lower()):
                 wb.register('chrome', None, wb.BackgroundBrowser('chrome'))
             else:
-                chrome_path="D:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"
+                # Fallback to common Chrome installation path
+                chrome_path = "D:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"
                 if os.path.isfile(chrome_path):
                     wb.register('chrome', None, wb.BackgroundBrowser(chrome_path))
             try:
                 wb.get('chrome').open(link, new=2)
             except:
+                # Fallback to default browser if Chrome registration fails
                 wb.open(link, new=2)
         elif browser.lower() in wb._browsers:
             wb.get(browser.lower()).open(link, new=2)
@@ -1616,6 +1724,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.set_dirty()
 
     def load_predefined_classes(self, predef_classes_file):
+        """Load predefined class labels from file for quick annotation."""
         if os.path.exists(predef_classes_file) is True:
             with codecs.open(predef_classes_file, 'r', 'utf8') as f:
                 for line in f:
