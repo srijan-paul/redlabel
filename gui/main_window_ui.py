@@ -118,10 +118,10 @@ class MainWindowUIMixin:
         yolo_layout.addWidget(self.yolo_model_label)
         
         # YOLO inference button
-        self.yolo_inference_button = QPushButton("Run YOLO Inference")
+        self.yolo_inference_button = QPushButton("Autodetect with AI")
         self.yolo_inference_button.clicked.connect(self.run_yolo_inference)
         self.yolo_inference_button.setEnabled(False)
-        self.yolo_inference_button.setToolTip("Run YOLO inference on unlabeled images")
+        self.yolo_inference_button.setToolTip("Run inference on unlabeled images")
         
         yolo_layout.addWidget(self.yolo_inference_button)
         
