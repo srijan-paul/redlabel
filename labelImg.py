@@ -542,6 +542,9 @@ class MainWindow(QMainWindow, WindowMixin):
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
             self.canvas.set_drawing_shape_to_square(False)
+        elif event.key() >= Qt.Key_0 and event.key() <= Qt.Key_9:
+            self.default_label_combo_box.cb.setCurrentIndex(event.key() - Qt.Key_0)
+
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Control:
