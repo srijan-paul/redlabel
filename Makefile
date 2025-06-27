@@ -24,10 +24,16 @@ qt5py3:
 	pyrcc5 -o libs/resources.py resources.qrc
 
 clean:
-	rm -rf ~/.labelImgSettings.pkl *.pyc dist labelImg.egg-info __pycache__ build
+	rm -rf ~/.redlabelSettings.pkl *.pyc dist redlabel.egg-info __pycache__ build
+
+build:
+	python3 -m build
 
 pip_upload:
-	python3 setup.py upload
+	python3 -m twine upload dist/*
+
+install:
+	pip install -e .
 
 long_description:
 	restview --long-description

@@ -1,5 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+RedLabel
+A modern image annotation tool with quality of life improvements.
+
+This is a fork of HumanSignal/labelImg with modernized setup and improved features.
+"""
 import argparse
 import codecs
 import os.path
@@ -48,7 +54,7 @@ from libs.create_ml_io import JSON_EXT
 from libs.ustr import ustr
 from libs.hashableQListWidgetItem import HashableQListWidgetItem
 
-__appname__ = 'labelImg'
+__appname__ = 'RedLabel'
 
 
 class WindowMixin(object):
@@ -702,7 +708,7 @@ class MainWindow(QMainWindow, WindowMixin):
         QMessageBox.information(self, u'Information', msg)
 
     def show_shortcuts_dialog(self):
-        self.show_tutorial_dialog(browser='default', link='https://github.com/tzutalin/labelImg#Hotkeys')
+        self.show_tutorial_dialog(browser='default', link='https://github.com/srijan-paul/RedLabel#keyboard-shortcuts')
 
     def create_shape(self):
         assert self.beginner()
@@ -1708,7 +1714,7 @@ def get_main_app(argv=None):
     args.class_file = args.class_file and os.path.normpath(args.class_file)
     args.save_dir = args.save_dir and os.path.normpath(args.save_dir)
 
-    # Usage : labelImg.py image classFile saveDir
+    # Usage : redlabel.py image classFile saveDir
     win = MainWindow(args.image_dir,
                      args.class_file,
                      args.save_dir)

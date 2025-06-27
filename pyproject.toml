@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redlabel"
+version = "1.8.6"
+description = "RedLabel - Modern image annotation tool with improved quality of life features"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "TzuTa Lin", email = "tzu.ta.lin@gmail.com"},
+    {name = "Fork Maintainers"}
+]
+maintainers = [
+    {name = "Fork Maintainers"}
+]
+keywords = ["image", "annotation", "labeling", "computer-vision", "machine-learning"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+requires-python = ">=3.8"
+dependencies = [
+    "PyQt5>=5.14.0",
+    "lxml>=4.6.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/srijan-paul/RedLabel"
+Repository = "https://github.com/srijan-paul/RedLabel"
+Issues = "https://github.com/srijan-paul/RedLabel/issues"
+"Original Project" = "https://github.com/HumanSignal/labelImg"
+
+[project.scripts]
+redlabel = "redlabel:main"
+
+[project.gui-scripts]
+redlabel-gui = "redlabel:main"
+
+[tool.setuptools]
+packages = ["libs"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.qrc"]
+"data" = ["*.txt"]
+"resources" = ["**/*"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-qt>=4.0.0"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
