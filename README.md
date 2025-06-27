@@ -2,8 +2,6 @@
 
 A modern fork of the popular image annotation tool with quality of life improvements.
 
-![Demo](demo/demo.jpg)
-
 ## Features
 
 - **Multiple formats**: PASCAL VOC XML, YOLO, CreateML

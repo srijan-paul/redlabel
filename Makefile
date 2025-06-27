@@ -21,7 +21,7 @@ qt4py3:
 	pyrcc4 -py3 -o libs/resources.py resources.qrc
 
 qt5py3:
-	uv run pyrcc5 -o libs/resources.py resources.qrc
+	python build_resources.py
 
 clean:
 	rm -rf ~/.redlabelSettings.pkl *.pyc dist redlabel.egg-info __pycache__ build
