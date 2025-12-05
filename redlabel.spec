@@ -2,11 +2,15 @@
 
 import os
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 # Get the directory of this spec file
 spec_root = os.path.dirname(os.path.abspath(SPEC))
 
 block_cipher = None
+
+# Collect all submodules from libs
+libs_imports = collect_submodules('libs')
 
 a = Analysis(
     ['redlabel.py'],
@@ -15,8 +19,9 @@ a = Analysis(
     datas=[
         ('data', 'data'),
         ('resources', 'resources'),
+        ('libs', 'libs'),
     ],
-    hiddenimports=[
+    hiddenimports=libs_imports + [
         'xml',
         'xml.etree',
         'xml.etree.ElementTree',
